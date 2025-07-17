@@ -3,6 +3,7 @@ import { Plus } from 'lucide-react';
 import StakeholderSummary from './stakeholder/StakeholderSummary';
 import StakeholderTable from './stakeholder/StakeholderTable';
 import StakeholderForm from './stakeholder/StakeholderForm';
+import StakeholderDescriptions from './stakeholder/StakeholderDescriptions';
 import { useClientData } from '../hooks/useClientData';
 import { useClient } from '../contexts/ClientContext';
 
@@ -158,6 +159,8 @@ const StakeholderManagement = () => {
         onEdit={handleEdit}
         onDelete={handleDelete}
       />
+
+      <StakeholderDescriptions />
 
       {showForm && (
         <StakeholderForm

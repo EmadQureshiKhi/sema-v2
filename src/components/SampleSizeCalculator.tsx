@@ -21,6 +21,9 @@ const SampleSizeCalculator = () => {
     zScore: 0
   });
 
+  const [stakeholderPopulations, setStakeholderPopulations] = useState<{[key: string]: number}>({});
+  const [selectedStakeholder, setSelectedStakeholder] = useState<string>('');
+
   const getZScore = (confidence: number) => {
     const zScores: { [key: number]: number } = {
       90: 1.645,
@@ -54,12 +57,12 @@ const SampleSizeCalculator = () => {
     calculateSampleSize();
   }, [parameters]);
 
-  // Convert stakeholders to categories for sample size calculation
-  const stakeholderCategories = stakeholders.map(stakeholder => ({
-    name: stakeholder.name,
-    estimatedPopulation: 100, // Default population - this could be made configurable
-    priority: stakeholder.priority ? 'High' : 'Low'
-  }));
+  const updateStakeholderPopulation = (stakeholderId: string, population: number) => {
+    setStakeholderPopulations(prev => ({
+      ...prev,
+      [stakeholderId]: population
+    }));
+  };
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
@@ -71,12 +74,19 @@ const SampleSizeCalculator = () => {
   };
 
   const calculateCategorySampleSize = (population: number) => {
+    if (population <= 0) return 0;
+    
     const z = getZScore(parameters.confidenceLevel);
     const p = parameters.populationProportion;
     const e = parameters.marginOfError / 100;
     
     const infiniteSize = Math.ceil((z * z * p * (1 - p)) / (e * e));
-    return Math.ceil((infiniteSize * population) / (population + infiniteSize - 1));
+    
+    if (parameters.useFinitePopulation) {
+      return Math.ceil((infiniteSize * population) / (population + infiniteSize - 1));
+    }
+    
+    return infiniteSize;
   };
 
   return (
@@ -100,48 +110,143 @@ const SampleSizeCalculator = () => {
           <span>Sample Size by Stakeholder Category</span>
         </h3>
         
-        {stakeholderCategories.length === 0 ? (
+        {stakeholders.length === 0 ? (
           <div className="text-center py-8">
             <Users className="w-12 h-12 text-slate-400 mx-auto mb-4" />
             <h4 className="text-lg font-medium text-slate-900 mb-2">No Stakeholders Added</h4>
             <p className="text-slate-600">Add stakeholders in the Stakeholder Management module to see sample size calculations.</p>
           </div>
         ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="bg-slate-50">
-                <th className="text-left p-4 font-medium text-slate-900">Stakeholder Category</th>
-                <th className="text-left p-4 font-medium text-slate-900">Estimated Population</th>
-                <th className="text-left p-4 font-medium text-slate-900">Priority</th>
-                <th className="text-left p-4 font-medium text-slate-900">Recommended Sample Size</th>
-                <th className="text-left p-4 font-medium text-slate-900">Sampling Rate</th>
-              </tr>
-            </thead>
-            <tbody>
-              {stakeholderCategories.map((category, index) => {
-                const sampleSize = calculateCategorySampleSize(category.estimatedPopulation);
-                const samplingRate = ((sampleSize / category.estimatedPopulation) * 100).toFixed(1);
-                
-                return (
-                  <tr key={index} className="border-b border-slate-200 hover:bg-slate-50">
-                    <td className="p-4 font-medium text-slate-900">{category.name}</td>
-                    <td className="p-4 text-slate-600">{category.estimatedPopulation.toLocaleString()}</td>
-                    <td className="p-4">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getPriorityColor(category.priority)}`}>
-                        {category.priority}
-                      </span>
-                    </td>
-                    <td className="p-4">
-                      <div className="font-medium text-slate-900">{sampleSize}</div>
-                    </td>
-                    <td className="p-4 text-slate-600">{samplingRate}%</td>
+          <div className="space-y-6">
+            {/* Population Input Section */}
+            <div className="bg-blue-50 rounded-xl p-6">
+              <h4 className="font-semibold text-slate-900 mb-4">Set Population Sizes</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {stakeholders.map((stakeholder) => (
+                  <div key={stakeholder.id} className="flex items-center space-x-3">
+                    <div className="flex-1">
+                      <label className="block text-sm font-medium text-slate-700 mb-1">
+                        {stakeholder.name}
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={stakeholderPopulations[stakeholder.id] || ''}
+                        onChange={(e) => updateStakeholderPopulation(stakeholder.id, parseInt(e.target.value) || 0)}
+                        className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-colors"
+                        placeholder="Enter population size"
+                      />
+                    </div>
+                    <div className="text-right min-w-[80px]">
+                      <div className="text-sm text-slate-600">Sample Size</div>
+                      <div className="font-bold text-blue-600">
+                        {stakeholderPopulations[stakeholder.id] ? 
+                          calculateCategorySampleSize(stakeholderPopulations[stakeholder.id]) : 
+                          '-'
+                        }
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Results Table */}
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="bg-slate-50">
+                    <th className="text-left p-4 font-medium text-slate-900">Stakeholder</th>
+                    <th className="text-left p-4 font-medium text-slate-900">Category</th>
+                    <th className="text-left p-4 font-medium text-slate-900">Population Size</th>
+                    <th className="text-left p-4 font-medium text-slate-900">Priority</th>
+                    <th className="text-left p-4 font-medium text-slate-900">Sample Size</th>
+                    <th className="text-left p-4 font-medium text-slate-900">Sampling Rate</th>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                </thead>
+                <tbody>
+                  {stakeholders.map((stakeholder) => {
+                    const population = stakeholderPopulations[stakeholder.id] || 0;
+                    const sampleSize = population > 0 ? calculateCategorySampleSize(population) : 0;
+                    const samplingRate = population > 0 ? ((sampleSize / population) * 100).toFixed(1) : '0';
+                    
+                    return (
+                      <tr key={stakeholder.id} className="border-b border-slate-200 hover:bg-slate-50">
+                        <td className="p-4 font-medium text-slate-900">{stakeholder.name}</td>
+                        <td className="p-4">
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            stakeholder.category === 'Internal' 
+                              ? 'bg-blue-100 text-blue-800' 
+                              : 'bg-green-100 text-green-800'
+                          }`}>
+                            {stakeholder.category}
+                          </span>
+                        </td>
+                        <td className="p-4">
+                          {population > 0 ? (
+                            <span className="text-slate-900 font-medium">{population.toLocaleString()}</span>
+                          ) : (
+                            <span className="text-slate-400 italic">Not set</span>
+                          )}
+                        </td>
+                        <td className="p-4">
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            stakeholder.priority 
+                              ? 'bg-green-100 text-green-800' 
+                              : 'bg-slate-100 text-slate-600'
+                          }`}>
+                            {stakeholder.priority ? 'High' : 'Low'}
+                          </span>
+                        </td>
+                        <td className="p-4">
+                          {sampleSize > 0 ? (
+                            <div className="font-bold text-blue-600">{sampleSize}</div>
+                          ) : (
+                            <span className="text-slate-400">-</span>
+                          )}
+                        </td>
+                        <td className="p-4">
+                          {population > 0 ? (
+                            <span className="text-slate-600">{samplingRate}%</span>
+                          ) : (
+                            <span className="text-slate-400">-</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Summary */}
+            <div className="bg-gradient-to-r from-green-50 to-blue-50 rounded-xl p-6">
+              <h4 className="font-semibold text-slate-900 mb-3">Summary</h4>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-blue-600">
+                    {Object.values(stakeholderPopulations).reduce((sum, pop) => sum + (pop || 0), 0).toLocaleString()}
+                  </div>
+                  <div className="text-sm text-slate-600">Total Population</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-green-600">
+                    {stakeholders.reduce((sum, stakeholder) => {
+                      const population = stakeholderPopulations[stakeholder.id] || 0;
+                      return sum + (population > 0 ? calculateCategorySampleSize(population) : 0);
+                    }, 0)}
+                  </div>
+                  <div className="text-sm text-slate-600">Total Sample Size</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-purple-600">
+                    {stakeholders.filter(s => stakeholder.priority).length}
+                  </div>
+                  <div className="text-sm text-slate-600">High Priority Groups</div>
+                </div>
+              </div>
+            </div>
+          </div>
         )}
       </div>
 
