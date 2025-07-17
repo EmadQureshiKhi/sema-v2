@@ -73,11 +73,18 @@ const SampleSizeCalculator = () => {
     // Calculate infinite population sample size first
     const infiniteSize = Math.ceil((z * z * p * (1 - p)) / (e * e));
     
-    // If using finite population correction and population is provided
-    if (useFinitePopulation && population > 0 && population >= infiniteSize) {
-      // Finite population correction formula: n_adjusted = (n_infinite * N) / (N + n_infinite - 1)
+    // If using finite population correction and population is provided and greater than 0
+    if (useFinitePopulation && population > 0) {
+      // Apply finite population correction formula: n_adjusted = (n_infinite * N) / (N + n_infinite - 1)
       const adjustedSize = Math.ceil((infiniteSize * population) / (population + infiniteSize - 1));
-      return adjustedSize;
+      // Ensure sample size never exceeds population size
+      return Math.min(adjustedSize, population);
+    }
+    
+    // For infinite population or when finite correction is not used
+    // Still cap at population size if population is specified and greater than 0
+    if (population > 0) {
+      return Math.min(infiniteSize, population);
     }
     
     return infiniteSize;
@@ -163,9 +170,12 @@ const SampleSizeCalculator = () => {
                               type="checkbox"
                               checked={stakeholderFiniteFlags[stakeholder.id] || false}
                               onChange={(e) => updateStakeholderFiniteFlag(stakeholder.id, e.target.checked)}
+                              disabled={population === 0}
                               className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                             />
-                            <span className="text-sm font-medium text-slate-700">Use finite population correction</span>
+                            <span className={`text-sm font-medium ${population === 0 ? 'text-slate-400' : 'text-slate-700'}`}>
+                              Use finite population correction
+                            </span>
                           </label>
                         </div>
                       </div>
@@ -220,7 +230,7 @@ const SampleSizeCalculator = () => {
                   {stakeholders.map((stakeholder) => {
                     const population = stakeholderPopulations[stakeholder.id] || 0;
                     const useFinite = stakeholderFiniteFlags[stakeholder.id] || false;
-                    const sampleSize = population > 0 ? calculateCategorySampleSize(population, useFinite) : 0;
+                    const sampleSize = calculateCategorySampleSize(population, useFinite);
                     const samplingRate = population > 0 ? ((sampleSize / population) * 100).toFixed(1) : '0';
                     
                     return (
@@ -244,11 +254,11 @@ const SampleSizeCalculator = () => {
                         </td>
                         <td className="p-4">
                           <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                            useFinite 
+                            useFinite && population > 0
                               ? 'bg-green-100 text-green-800' 
                               : 'bg-slate-100 text-slate-600'
                           }`}>
-                            {useFinite ? 'Yes' : 'No'}
+                            {useFinite && population > 0 ? 'Yes' : 'No'}
                           </span>
                         </td>
                         <td className="p-4">
@@ -283,7 +293,10 @@ const SampleSizeCalculator = () => {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="text-center">
                   <div className="text-2xl font-bold text-blue-600">
-                    {Object.values(stakeholderPopulations).reduce((sum, pop) => sum + (pop || 0), 0).toLocaleString()}
+                    {(() => {
+                      const totalPop = Object.values(stakeholderPopulations).reduce((sum, pop) => sum + (pop || 0), 0);
+                      return totalPop === 0 ? '∞' : totalPop.toLocaleString();
+                    })()}
                   </div>
                   <div className="text-sm text-slate-600">Total Population</div>
                 </div>
