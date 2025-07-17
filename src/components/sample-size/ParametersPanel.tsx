@@ -83,33 +83,6 @@ const ParametersPanel: React.FC<ParametersPanelProps> = ({
             <span>0.9</span>
           </div>
         </div>
-
-        <div>
-          <label className="flex items-center space-x-2">
-            <input
-              type="checkbox"
-              checked={parameters.useFinitePopulation}
-              onChange={(e) => setParameters({...parameters, useFinitePopulation: e.target.checked})}
-              className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-            />
-            <span className="text-sm font-medium text-slate-700">Use finite population adjustment</span>
-          </label>
-        </div>
-
-        {parameters.useFinitePopulation && (
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              Population Size (N)
-            </label>
-            <input
-              type="number"
-              value={parameters.populationSize}
-              onChange={(e) => setParameters({...parameters, populationSize: parseInt(e.target.value) || 0})}
-              className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-colors"
-              placeholder="Enter population size"
-            />
-          </div>
-        )}
       </div>
     </div>
   );

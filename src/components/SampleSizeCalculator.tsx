@@ -22,7 +22,7 @@ const SampleSizeCalculator = () => {
   });
 
   const [stakeholderPopulations, setStakeholderPopulations] = useState<{[key: string]: number}>({});
-  const [selectedStakeholder, setSelectedStakeholder] = useState<string>('');
+  const [stakeholderFiniteFlags, setStakeholderFiniteFlags] = useState<{[key: string]: boolean}>({});
 
   const getZScore = (confidence: number) => {
     const zScores: { [key: number]: number } = {
@@ -40,15 +40,9 @@ const SampleSizeCalculator = () => {
     
     const infiniteSize = Math.ceil((z * z * p * (1 - p)) / (e * e));
     
-    let adjustedSize = infiniteSize;
-    
-    if (parameters.useFinitePopulation && parameters.populationSize > 0) {
-      adjustedSize = Math.ceil((infiniteSize * parameters.populationSize) / (parameters.populationSize + infiniteSize - 1));
-    }
-    
     setResults({
       infiniteSampleSize: infiniteSize,
-      adjustedSampleSize: adjustedSize,
+      adjustedSampleSize: infiniteSize, // This is now just for display, individual calculations happen per stakeholder
       zScore: z
     });
   };
@@ -64,26 +58,26 @@ const SampleSizeCalculator = () => {
     }));
   };
 
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'High': return 'bg-red-100 text-red-800';
-      case 'Medium': return 'bg-yellow-100 text-yellow-800';
-      case 'Low': return 'bg-green-100 text-green-800';
-      default: return 'bg-slate-100 text-slate-600';
-    }
+  const updateStakeholderFiniteFlag = (stakeholderId: string, useFinite: boolean) => {
+    setStakeholderFiniteFlags(prev => ({
+      ...prev,
+      [stakeholderId]: useFinite
+    }));
   };
 
-  const calculateCategorySampleSize = (population: number) => {
-    if (population <= 0) return 0;
-    
+  const calculateCategorySampleSize = (population: number, useFinitePopulation: boolean) => {
     const z = getZScore(parameters.confidenceLevel);
     const p = parameters.populationProportion;
     const e = parameters.marginOfError / 100;
     
+    // Calculate infinite population sample size first
     const infiniteSize = Math.ceil((z * z * p * (1 - p)) / (e * e));
     
-    if (parameters.useFinitePopulation) {
-      return Math.ceil((infiniteSize * population) / (population + infiniteSize - 1));
+    // If using finite population correction and population is provided
+    if (useFinitePopulation && population > 0 && population >= infiniteSize) {
+      // Finite population correction formula: n_adjusted = (n_infinite * N) / (N + n_infinite - 1)
+      const adjustedSize = Math.ceil((infiniteSize * population) / (population + infiniteSize - 1));
+      return adjustedSize;
     }
     
     return infiniteSize;
@@ -120,34 +114,91 @@ const SampleSizeCalculator = () => {
           <div className="space-y-6">
             {/* Population Input Section */}
             <div className="bg-blue-50 rounded-xl p-6">
-              <h4 className="font-semibold text-slate-900 mb-4">Set Population Sizes</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {stakeholders.map((stakeholder) => (
-                  <div key={stakeholder.id} className="flex items-center space-x-3">
-                    <div className="flex-1">
-                      <label className="block text-sm font-medium text-slate-700 mb-1">
-                        {stakeholder.name}
-                      </label>
-                      <input
-                        type="number"
-                        min="1"
-                        value={stakeholderPopulations[stakeholder.id] || ''}
-                        onChange={(e) => updateStakeholderPopulation(stakeholder.id, parseInt(e.target.value) || 0)}
-                        className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-colors"
-                        placeholder="Enter population size"
-                      />
-                    </div>
-                    <div className="text-right min-w-[80px]">
-                      <div className="text-sm text-slate-600">Sample Size</div>
-                      <div className="font-bold text-blue-600">
-                        {stakeholderPopulations[stakeholder.id] ? 
-                          calculateCategorySampleSize(stakeholderPopulations[stakeholder.id]) : 
-                          '-'
-                        }
+              <h4 className="font-semibold text-slate-900 mb-4">Configure Sample Size Parameters</h4>
+              <div className="space-y-4">
+                {stakeholders.map((stakeholder) => {
+                  const population = stakeholderPopulations[stakeholder.id] || 0;
+                  const useFinite = stakeholderFiniteFlags[stakeholder.id] || false;
+                  const sampleSize = calculateCategorySampleSize(population, useFinite);
+                  
+                  return (
+                    <div key={stakeholder.id} className="bg-white rounded-lg p-4 border border-slate-200">
+                      <div className="flex items-center justify-between mb-3">
+                        <div>
+                          <h5 className="font-medium text-slate-900">{stakeholder.name}</h5>
+                          <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium mt-1 ${
+                            stakeholder.category === 'Internal' 
+                              ? 'bg-blue-100 text-blue-800' 
+                              : 'bg-green-100 text-green-800'
+                          }`}>
+                            {stakeholder.category}
+                          </span>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-sm text-slate-600">Sample Size</div>
+                          <div className="text-2xl font-bold text-blue-600">
+                            {sampleSize}
+                          </div>
+                        </div>
                       </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700 mb-1">
+                            Population Size
+                          </label>
+                          <input
+                            type="number"
+                            min="1"
+                            value={stakeholderPopulations[stakeholder.id] || ''}
+                            onChange={(e) => updateStakeholderPopulation(stakeholder.id, parseInt(e.target.value) || 0)}
+                            className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-colors"
+                            placeholder="Enter population size"
+                          />
+                        </div>
+                        
+                        <div className="flex items-end">
+                          <label className="flex items-center space-x-2 pb-2">
+                            <input
+                              type="checkbox"
+                              checked={stakeholderFiniteFlags[stakeholder.id] || false}
+                              onChange={(e) => updateStakeholderFiniteFlag(stakeholder.id, e.target.checked)}
+                              className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                            />
+                            <span className="text-sm font-medium text-slate-700">Use finite population correction</span>
+                          </label>
+                        </div>
+                      </div>
+                      
+                      {population > 0 && (
+                        <div className="mt-3 text-sm text-slate-600">
+                          <div className="flex justify-between">
+                            <span>Sampling Rate:</span>
+                            <span className="font-medium">{((sampleSize / population) * 100).toFixed(1)}%</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>Formula Used:</span>
+                            <span className="font-mono text-xs">
+                              {useFinite ? 'n = (n₀ × N) / (N + n₀ - 1)' : 'n = (Z² × p × (1-p)) / E²'}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {population === 0 && (
+                        <div className="mt-3 text-sm text-slate-600">
+                          <div className="flex justify-between">
+                            <span>Formula Used:</span>
+                            <span className="font-mono text-xs">n = (Z² × p × (1-p)) / E²</span>
+                          </div>
+                          <div className="text-xs text-slate-500 mt-1">
+                            Infinite population calculation (default)
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
 
@@ -159,6 +210,7 @@ const SampleSizeCalculator = () => {
                     <th className="text-left p-4 font-medium text-slate-900">Stakeholder</th>
                     <th className="text-left p-4 font-medium text-slate-900">Category</th>
                     <th className="text-left p-4 font-medium text-slate-900">Population Size</th>
+                    <th className="text-left p-4 font-medium text-slate-900">Finite Correction</th>
                     <th className="text-left p-4 font-medium text-slate-900">Priority</th>
                     <th className="text-left p-4 font-medium text-slate-900">Sample Size</th>
                     <th className="text-left p-4 font-medium text-slate-900">Sampling Rate</th>
@@ -167,7 +219,8 @@ const SampleSizeCalculator = () => {
                 <tbody>
                   {stakeholders.map((stakeholder) => {
                     const population = stakeholderPopulations[stakeholder.id] || 0;
-                    const sampleSize = population > 0 ? calculateCategorySampleSize(population) : 0;
+                    const useFinite = stakeholderFiniteFlags[stakeholder.id] || false;
+                    const sampleSize = population > 0 ? calculateCategorySampleSize(population, useFinite) : 0;
                     const samplingRate = population > 0 ? ((sampleSize / population) * 100).toFixed(1) : '0';
                     
                     return (
@@ -186,8 +239,17 @@ const SampleSizeCalculator = () => {
                           {population > 0 ? (
                             <span className="text-slate-900 font-medium">{population.toLocaleString()}</span>
                           ) : (
-                            <span className="text-slate-400 italic">Not set</span>
+                            <span className="text-slate-400 italic">Infinite</span>
                           )}
+                        </td>
+                        <td className="p-4">
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            useFinite 
+                              ? 'bg-green-100 text-green-800' 
+                              : 'bg-slate-100 text-slate-600'
+                          }`}>
+                            {useFinite ? 'Yes' : 'No'}
+                          </span>
                         </td>
                         <td className="p-4">
                           <span className={`px-2 py-1 rounded-full text-xs font-medium ${
@@ -199,17 +261,13 @@ const SampleSizeCalculator = () => {
                           </span>
                         </td>
                         <td className="p-4">
-                          {sampleSize > 0 ? (
-                            <div className="font-bold text-blue-600">{sampleSize}</div>
-                          ) : (
-                            <span className="text-slate-400">-</span>
-                          )}
+                          <div className="font-bold text-blue-600">{sampleSize}</div>
                         </td>
                         <td className="p-4">
                           {population > 0 ? (
                             <span className="text-slate-600">{samplingRate}%</span>
                           ) : (
-                            <span className="text-slate-400">-</span>
+                            <span className="text-slate-400 italic">N/A</span>
                           )}
                         </td>
                       </tr>
@@ -233,14 +291,15 @@ const SampleSizeCalculator = () => {
                   <div className="text-2xl font-bold text-green-600">
                     {stakeholders.reduce((sum, stakeholder) => {
                       const population = stakeholderPopulations[stakeholder.id] || 0;
-                      return sum + (population > 0 ? calculateCategorySampleSize(population) : 0);
+                      const useFinite = stakeholderFiniteFlags[stakeholder.id] || false;
+                      return sum + calculateCategorySampleSize(population, useFinite);
                     }, 0)}
                   </div>
                   <div className="text-sm text-slate-600">Total Sample Size</div>
                 </div>
                 <div className="text-center">
                   <div className="text-2xl font-bold text-purple-600">
-                    {stakeholders.filter(s => stakeholder.priority).length}
+                    {stakeholders.filter(s => s.priority).length}
                   </div>
                   <div className="text-sm text-slate-600">High Priority Groups</div>
                 </div>
@@ -253,26 +312,40 @@ const SampleSizeCalculator = () => {
       {/* Statistical Information */}
       <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-2xl p-8 text-white">
         <h3 className="text-xl font-bold mb-4">Statistical Methodology</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="bg-white/10 rounded-xl p-4">
-            <h4 className="font-semibold mb-2">Confidence Level</h4>
+            <h4 className="font-semibold mb-2">Infinite Population Formula</h4>
+            <p className="text-sm text-blue-100 mb-2">
+              <code className="bg-white/20 px-2 py-1 rounded">n = (Z² × p × (1-p)) / E²</code>
+            </p>
             <p className="text-sm text-blue-100">
-              The probability that the sample accurately reflects the population. 
-              Higher confidence requires larger sample sizes.
+              Used when population is very large or unknown. Provides conservative estimates.
             </p>
           </div>
           <div className="bg-white/10 rounded-xl p-4">
-            <h4 className="font-semibold mb-2">Margin of Error</h4>
+            <h4 className="font-semibold mb-2">Finite Population Correction</h4>
+            <p className="text-sm text-blue-100 mb-2">
+              <code className="bg-white/20 px-2 py-1 rounded">n = (n₀ × N) / (N + n₀ - 1)</code>
+            </p>
             <p className="text-sm text-blue-100">
-              The maximum expected difference between the sample and population. 
-              Lower margins require larger samples.
+              Used when population size is known and finite. Reduces required sample size.
             </p>
           </div>
           <div className="bg-white/10 rounded-xl p-4">
-            <h4 className="font-semibold mb-2">Population Proportion</h4>
+            <h4 className="font-semibold mb-2">When to Use Finite Correction</h4>
             <p className="text-sm text-blue-100">
-              Expected proportion of the characteristic of interest. 
-              0.5 provides the most conservative estimate.
+              Use finite population correction when you know the exact population size and 
+              the sample size would be more than 5% of the population.
+            </p>
+          </div>
+          <div className="bg-white/10 rounded-xl p-4">
+            <h4 className="font-semibold mb-2">Variables</h4>
+            <p className="text-sm text-blue-100">
+              <strong>Z</strong> = Z-score for confidence level<br/>
+              <strong>p</strong> = Population proportion<br/>
+              <strong>E</strong> = Margin of error<br/>
+              <strong>N</strong> = Population size<br/>
+              <strong>n₀</strong> = Infinite population sample size
             </p>
           </div>
         </div>

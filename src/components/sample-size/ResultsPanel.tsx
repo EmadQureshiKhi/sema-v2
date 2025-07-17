@@ -9,7 +9,6 @@ interface ResultsPanelProps {
   };
   parameters: {
     confidenceLevel: number;
-    useFinitePopulation: boolean;
   };
 }
 
@@ -18,16 +17,16 @@ const ResultsPanel: React.FC<ResultsPanelProps> = ({ results, parameters }) => {
     <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-8 border border-slate-200">
       <h3 className="text-xl font-bold text-slate-900 mb-6 flex items-center space-x-2">
         <TrendingUp className="w-6 h-6 text-green-600" />
-        <span>Results</span>
+        <span>Base Parameters</span>
       </h3>
       
       <div className="space-y-6">
         <div className="bg-blue-50 rounded-xl p-6">
           <div className="text-3xl font-bold text-blue-600 mb-2">
-            {parameters.useFinitePopulation ? results.adjustedSampleSize : results.infiniteSampleSize}
+            {results.infiniteSampleSize}
           </div>
           <div className="text-sm text-slate-600">
-            {parameters.useFinitePopulation ? 'Adjusted Sample Size' : 'Infinite Population Sample Size'}
+            Base Sample Size (Infinite Population)
           </div>
         </div>
 
@@ -46,12 +45,12 @@ const ResultsPanel: React.FC<ResultsPanelProps> = ({ results, parameters }) => {
           <div className="flex items-start space-x-2">
             <Info className="w-5 h-5 text-yellow-600 mt-0.5" />
             <div>
-              <div className="font-medium text-yellow-800 mb-1">Formula Used</div>
-              <div className="text-sm text-yellow-700">
-                {parameters.useFinitePopulation 
-                  ? 'n = (n₀ × N) / (N + n₀ - 1)'
-                  : 'n = (Z² × p × (1-p)) / E²'
-                }
+              <div className="font-medium text-yellow-800 mb-1">Base Formula</div>
+              <div className="text-sm text-yellow-700 font-mono">
+                n = (Z² × p × (1-p)) / E²
+              </div>
+              <div className="text-xs text-yellow-600 mt-1">
+                This base calculation is used for all stakeholders, with finite population correction applied individually when selected.
               </div>
             </div>
           </div>
