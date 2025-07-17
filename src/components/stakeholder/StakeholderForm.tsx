@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 interface StakeholderFormProps {
   formData: {
@@ -76,38 +76,34 @@ const StakeholderForm: React.FC<StakeholderFormProps> = ({
   ];
 
   const [showCustomInput, setShowCustomInput] = useState(false);
-  const [selectedOption, setSelectedOption] = useState('');
 
   // Handle dropdown selection
   const handleStakeholderSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const value = e.target.value;
-    setSelectedOption(value);
     
     if (value === 'custom') {
       setShowCustomInput(true);
       setFormData({...formData, name: ''});
-    } else if (value) {
+    } else if (value === '') {
+      setShowCustomInput(false);
+      setFormData({...formData, name: ''});
+    } else {
       setShowCustomInput(false);
       setFormData({...formData, name: value});
     }
   };
 
-  // Reset form when editing changes
+  // Reset form when editing changes  
   React.useEffect(() => {
     if (editingId && formData.name) {
       const existingOption = stakeholderOptions.find(opt => opt.name === formData.name);
-      if (existingOption) {
-        setSelectedOption(formData.name);
-        setShowCustomInput(false);
-      } else {
-        setSelectedOption('custom');
+      if (!existingOption) {
         setShowCustomInput(true);
       }
     } else if (!editingId) {
-      setSelectedOption('');
       setShowCustomInput(false);
     }
-  }, [editingId, formData.name]);
+  }, [editingId]);
 
   return (
     <div className="fixed inset-0 bg-white/20 flex items-center justify-center z-[100]">
@@ -124,10 +120,9 @@ const StakeholderForm: React.FC<StakeholderFormProps> = ({
               </label>
               <div className="space-y-3">
                 <select
-                  value={selectedOption}
+                  value={formData.name || ''}
                   onChange={handleStakeholderSelect}
                   className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-colors"
-                  required={!showCustomInput}
                 >
                   <option value="">Select a stakeholder group...</option>
                   {stakeholderOptions.map((option, index) => (
@@ -147,14 +142,6 @@ const StakeholderForm: React.FC<StakeholderFormProps> = ({
                     placeholder="Enter custom stakeholder name"
                     required
                   />
-                )}
-                
-                {selectedOption && selectedOption !== 'custom' && (
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                    <p className="text-sm text-blue-800">
-                      <strong>Description:</strong> {stakeholderOptions.find(opt => opt.name === selectedOption)?.description}
-                    </p>
-                  </div>
                 )}
               </div>
             </div>
@@ -241,6 +228,7 @@ const StakeholderForm: React.FC<StakeholderFormProps> = ({
             <button
               type="submit"
               className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition-colors"
+              disabled={!formData.name}
             >
               {editingId ? 'Update' : 'Add'} Stakeholder
             </button>
