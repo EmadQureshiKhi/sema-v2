@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Settings, Users, FileText, Database, Shield, Bell, RefreshCw, Download, Building2 } from 'lucide-react';
 import ClientManagement from './admin/ClientManagement';
+import TemplateManagement from './admin/TemplateManagement';
 
 const AdminPanel = () => {
   const [activeTab, setActiveTab] = useState<'general' | 'users' | 'templates' | 'data' | 'clients'>('general');
@@ -175,64 +176,7 @@ const AdminPanel = () => {
   );
 
   const TemplateManagement = () => (
-    <div className="space-y-6">
-      <div className="bg-white/80 backdrop-blur-sm rounded-xl p-6 border border-slate-200">
-        <div className="flex items-center justify-between mb-4">
-          <h4 className="font-semibold text-slate-900">Material Topics Templates</h4>
-          <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-            Import Template
-          </button>
-        </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {[
-            { name: 'GRI Universal Standards', topics: 35, description: 'Complete GRI topic list' },
-            { name: 'Manufacturing Industry', topics: 24, description: 'Industry-specific topics' },
-            { name: 'Financial Services', topics: 18, description: 'Financial sector topics' },
-            { name: 'Technology Sector', topics: 21, description: 'Tech industry focus' }
-          ].map((template, index) => (
-            <div key={index} className="bg-slate-50 rounded-lg p-4">
-              <div className="flex items-center justify-between mb-2">
-                <h5 className="font-medium text-slate-900">{template.name}</h5>
-                <span className="text-sm text-slate-600">{template.topics} topics</span>
-              </div>
-              <p className="text-sm text-slate-600 mb-4">{template.description}</p>
-              <div className="flex items-center space-x-2">
-                <button className="text-blue-600 hover:text-blue-800 text-sm">Load</button>
-                <button className="text-green-600 hover:text-green-800 text-sm">Edit</button>
-                <button className="text-red-600 hover:text-red-800 text-sm">Delete</button>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="bg-white/80 backdrop-blur-sm rounded-xl p-6 border border-slate-200">
-        <h4 className="font-semibold text-slate-900 mb-4">Questionnaire Templates</h4>
-        <div className="space-y-4">
-          {[
-            { name: 'Standard SEMA Questionnaire', questions: 12, languages: 3 },
-            { name: 'Extended Assessment', questions: 25, languages: 5 },
-            { name: 'Quick Survey', questions: 8, languages: 2 }
-          ].map((template, index) => (
-            <div key={index} className="flex items-center justify-between bg-slate-50 rounded-lg p-4">
-              <div>
-                <h5 className="font-medium text-slate-900">{template.name}</h5>
-                <p className="text-sm text-slate-600">{template.questions} questions • {template.languages} languages</p>
-              </div>
-              <div className="flex items-center space-x-2">
-                <button className="px-3 py-1 bg-blue-100 text-blue-800 rounded text-sm hover:bg-blue-200">
-                  Preview
-                </button>
-                <button className="px-3 py-1 bg-green-100 text-green-800 rounded text-sm hover:bg-green-200">
-                  Use
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
+    <TemplateManagement />
   );
 
   const DataManagement = () => (

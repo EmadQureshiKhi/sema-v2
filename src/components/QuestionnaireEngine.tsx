@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
-import { FileText, Send, Users, Clock, CheckCircle, Plus, Edit2, Trash2 } from 'lucide-react';
+import { FileText, Send, Users, Clock, CheckCircle, Plus, Edit2, Trash2, Download } from 'lucide-react';
 import { useClientData } from '../hooks/useClientData';
 import { useClient } from '../contexts/ClientContext';
+import { templateService, QuestionnaireTemplate } from '../lib/supabase';
+import { useToast } from './ui/ToastContainer';
 
 interface MaterialTopic {
   id: string;
@@ -25,9 +27,14 @@ interface StakeholderResponse {
 const QuestionnaireEngine = () => {
   const { activeClient } = useClient();
   const { data, updateMaterialTopics, updateResponses } = useClientData();
+  const { showToast } = useToast();
   const materialTopics = data.materialTopics;
   const responses = data.responses;
 
+  // Template management state
+  const [templates, setTemplates] = useState<QuestionnaireTemplate[]>([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
+  const [loadingTemplates, setLoadingTemplates] = useState(false);
 
   const [showTopicForm, setShowTopicForm] = useState(false);
   const [editingTopicId, setEditingTopicId] = useState<string | null>(null);
@@ -90,6 +97,73 @@ const QuestionnaireEngine = () => {
   const totalResponses = responses.length;
   const averageResponseTime = 5.2; // minutes
 
+  // Load templates when component mounts or client changes
+  React.useEffect(() => {
+    loadTemplates();
+  }, [activeClient]);
+
+  const loadTemplates = async () => {
+    try {
+      setLoadingTemplates(true);
+      console.log('Loading templates in QuestionnaireEngine for client:', activeClient?.id);
+      const data = await templateService.getTemplates(activeClient?.id);
+      console.log('Templates loaded in QuestionnaireEngine:', data);
+      setTemplates(data);
+    } catch (error) {
+      console.error('Error loading templates in QuestionnaireEngine:', error);
+      console.error('Error details:', {
+        message: error.message,
+        stack: error.stack,
+        name: error.name
+      });
+      showToast({
+        type: 'error',
+        title: 'Error',
+        message: `Failed to load templates: ${error.message}`
+      });
+    } finally {
+      setLoadingTemplates(false);
+    }
+  };
+
+  const handleTemplateSelect = async (templateId: string) => {
+    if (!templateId) {
+      setSelectedTemplateId('');
+      return;
+    }
+
+    try {
+      const template = templates.find(t => t.id === templateId);
+      if (!template) return;
+
+      // Convert template topics to material topics format
+      const convertedTopics = template.topics.map(topic => ({
+        id: topic.id,
+        name: topic.name,
+        description: topic.description,
+        category: topic.category,
+        averageScore: 0,
+        responseCount: 0,
+        isMaterial: false
+      }));
+
+      updateMaterialTopics(convertedTopics);
+      setSelectedTemplateId(templateId);
+      
+      showToast({
+        type: 'success',
+        title: 'Template Loaded',
+        message: `${template.name} has been loaded with ${template.topics.length} topics.`
+      });
+    } catch (error) {
+      console.error('Error loading template:', error);
+      showToast({
+        type: 'error',
+        title: 'Error',
+        message: 'Failed to load template. Please try again.'
+      });
+    }
+  };
   return (
     <div className="space-y-8">
       {/* Header */}
@@ -100,13 +174,69 @@ const QuestionnaireEngine = () => {
             Collect and analyze external stakeholder feedback for {activeClient?.name || 'selected client'}
           </p>
         </div>
-        <button
-          onClick={() => setShowTopicForm(true)}
-          className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl transition-colors"
-        >
-          <Plus className="w-5 h-5" />
-          <span>Add Topic</span>
-        </button>
+        <div className="flex items-center space-x-4">
+          {!selectedTemplateId && (
+            <button
+              onClick={() => setShowTopicForm(true)}
+              className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl transition-colors"
+            >
+              <Plus className="w-5 h-5" />
+              <span>Add Topic</span>
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Template Selection */}
+      <div className="bg-white/80 backdrop-blur-sm rounded-xl p-6 border border-slate-200">
+        <h3 className="text-lg font-bold text-slate-900 mb-4">Template Selection</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-2">
+              Load from Template
+            </label>
+            <select
+              value={selectedTemplateId}
+              onChange={(e) => handleTemplateSelect(e.target.value)}
+              disabled={loadingTemplates}
+              className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-colors"
+            >
+              <option value="">Select a template...</option>
+              {templates.map((template) => (
+                <option key={template.id} value={template.id}>
+                  {template.name} ({template.topics.length} topics)
+                </option>
+              ))}
+            </select>
+          </div>
+          
+          <div className="flex items-end">
+            <div className="text-sm text-slate-600">
+              {selectedTemplateId ? (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                  <div className="flex items-center space-x-2">
+                    <CheckCircle className="w-4 h-4 text-green-600" />
+                    <span className="text-green-800 font-medium">
+                      Template loaded: {templates.find(t => t.id === selectedTemplateId)?.name}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => handleTemplateSelect('')}
+                    className="text-green-600 hover:text-green-800 text-sm mt-1"
+                  >
+                    Clear template
+                  </button>
+                </div>
+              ) : (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                  <p className="text-blue-800">
+                    Select a template to load predefined topics, or add topics manually.
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Summary Cards */}
@@ -222,6 +352,27 @@ const QuestionnaireEngine = () => {
 
           {activeTab === 'topics' && (
             <div className="space-y-4">
+              {materialTopics.length === 0 && (
+                <div className="text-center py-12">
+                  <FileText className="w-12 h-12 text-slate-400 mx-auto mb-4" />
+                  <h4 className="text-lg font-medium text-slate-900 mb-2">No Topics Available</h4>
+                  <p className="text-slate-600 mb-4">
+                    {selectedTemplateId 
+                      ? 'The selected template has no topics.' 
+                      : 'Load a template or add topics manually to get started.'
+                    }
+                  </p>
+                  {!selectedTemplateId && (
+                    <button
+                      onClick={() => setShowTopicForm(true)}
+                      className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-xl transition-colors"
+                    >
+                      Add First Topic
+                    </button>
+                  )}
+                </div>
+              )}
+              
               {materialTopics.map((topic) => (
                 <div key={topic.id} className="bg-slate-50 rounded-xl p-6">
                   <div className="flex items-center justify-between">
@@ -248,18 +399,22 @@ const QuestionnaireEngine = () => {
                       </div>
                     </div>
                     <div className="flex items-center space-x-2">
-                      <button
-                        onClick={() => handleEditTopic(topic)}
-                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                      >
-                        <Edit2 className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteTopic(topic.id)}
-                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      {!selectedTemplateId && (
+                        <>
+                          <button
+                            onClick={() => handleEditTopic(topic)}
+                            className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteTopic(topic.id)}
+                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
                   <div className="mt-4">
@@ -277,6 +432,14 @@ const QuestionnaireEngine = () => {
 
           {activeTab === 'responses' && (
             <div className="space-y-4">
+              {responses.length === 0 && (
+                <div className="text-center py-12">
+                  <Users className="w-12 h-12 text-slate-400 mx-auto mb-4" />
+                  <h4 className="text-lg font-medium text-slate-900 mb-2">No Responses Yet</h4>
+                  <p className="text-slate-600">Responses from external stakeholders will appear here once questionnaires are sent and completed.</p>
+                </div>
+              )}
+              
               {responses.map((response) => (
                 <div key={response.id} className="bg-slate-50 rounded-xl p-6">
                   <div className="flex items-center justify-between mb-4">
@@ -325,7 +488,7 @@ const QuestionnaireEngine = () => {
       </div>
 
       {/* Topic Form Modal */}
-      {showTopicForm && (
+      {showTopicForm && !selectedTemplateId && (
         <div className="fixed inset-0 bg-white/20 flex items-center justify-center z-[100]">
           <div className="bg-slate-50 border border-slate-200 shadow-2xl rounded-2xl p-8 w-full max-w-2xl">
             <h3 className="text-2xl font-bold text-slate-900 mb-6">
