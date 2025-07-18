@@ -9,6 +9,7 @@ const TemplateManagement = () => {
   const { showToast } = useToast();
   const [templates, setTemplates] = useState<QuestionnaireTemplate[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
@@ -20,28 +21,74 @@ const TemplateManagement = () => {
 
   // Load templates on component mount and when client changes
   useEffect(() => {
-    loadTemplates();
-  }, [activeClient]);
+    let isMounted = true;
+    
+    const loadTemplatesEffect = async () => {
+      if (!activeClient || !isMounted) {
+        setTemplates([]);
+        setLoading(false);
+        return;
+      }
+
+      // Check if we're in demo mode or using local client
+      if (activeClient.id === 'demo' || activeClient.id.startsWith('client_')) {
+        console.log('Demo/local client detected, skipping template load');
+        setTemplates([]);
+        setLoading(false);
+        setLoadError(null);
+        return;
+      }
+
+      try {
+        setLoading(true);
+        setLoadError(null);
+        console.log('Loading templates for client:', activeClient.id);
+        
+        const data = await templateService.getTemplates(activeClient.id);
+        
+        if (isMounted) {
+          console.log('Templates loaded:', data);
+          setTemplates(data || []);
+        }
+      } catch (error) {
+        console.error('Error loading templates:', error);
+        if (isMounted) {
+          setTemplates([]);
+          setLoadError(error.message || 'Failed to load templates');
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadTemplatesEffect();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [activeClient?.id]); // Only depend on activeClient.id, not the entire object
 
   const loadTemplates = async () => {
+    if (!activeClient || activeClient.id === 'demo' || activeClient.id.startsWith('client_')) {
+      setTemplates([]);
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
+      setLoadError(null);
       console.log('Loading templates for client:', activeClient?.id);
-      const data = await templateService.getTemplates(activeClient?.id);
+      
+      const data = await templateService.getTemplates(activeClient.id);
       console.log('Templates loaded:', data);
-      setTemplates(data);
+      setTemplates(data || []);
     } catch (error) {
       console.error('Error loading templates:', error);
-      console.error('Error details:', {
-        message: error.message,
-        stack: error.stack,
-        name: error.name
-      });
-      showToast({
-        type: 'error',
-        title: 'Error',
-        message: `Failed to load templates: ${error.message}`
-      });
+      setTemplates([]);
+      setLoadError(error.message || 'Failed to load templates');
     } finally {
       setLoading(false);
     }
@@ -68,6 +115,16 @@ const TemplateManagement = () => {
       return;
     }
 
+    // Check if we're working with a demo or local client
+    if (!activeClient || activeClient.id === 'demo' || activeClient.id.startsWith('client_')) {
+      showToast({
+        type: 'warning',
+        title: 'Demo Mode',
+        message: 'Templates cannot be saved in demo mode. Please connect to Supabase to save templates.'
+      });
+      return;
+    }
+    
     try {
       if (editingId) {
         await templateService.updateTemplate(editingId, {
@@ -83,7 +140,7 @@ const TemplateManagement = () => {
         await templateService.createTemplate({
           name: formData.name,
           topics: formData.topics,
-          client_id: activeClient?.id
+          client_id: activeClient.id
         });
         showToast({
           type: 'success',
@@ -99,7 +156,7 @@ const TemplateManagement = () => {
       showToast({
         type: 'error',
         title: 'Error',
-        message: 'Failed to save template. Please try again.'
+        message: error.message || 'Failed to save template. Please try again.'
       });
     }
   };
@@ -177,10 +234,69 @@ const TemplateManagement = () => {
     }
   };
 
+  // Early return for demo/local clients
+  if (!activeClient || activeClient.id === 'demo' || activeClient.id.startsWith('client_')) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h4 className="text-xl font-bold text-kpmg-gray-900">Template Management</h4>
+            <p className="text-kpmg-gray-600 mt-1">Create and manage questionnaire templates</p>
+            <div className="mt-2">
+              <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-kpmg-orange-100 text-kpmg-orange-800">
+                Demo Mode - Templates require Supabase connection
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="text-center py-12">
+          <FileText className="w-12 h-12 text-kpmg-gray-400 mx-auto mb-4" />
+          <h5 className="text-lg font-medium text-kpmg-gray-900 mb-2">Templates Not Available</h5>
+          <p className="text-kpmg-gray-600 mb-4">
+            Templates require a Supabase database connection. Connect to Supabase to create and manage templates.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-2 border-kpmg-blue-600 border-t-transparent"></div>
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h4 className="text-xl font-bold text-kpmg-gray-900">Template Management</h4>
+            <p className="text-kpmg-gray-600 mt-1">Loading templates...</p>
+          </div>
+        </div>
+        <div className="flex items-center justify-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-2 border-kpmg-blue-600 border-t-transparent"></div>
+        </div>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h4 className="text-xl font-bold text-kmpg-gray-900">Template Management</h4>
+            <p className="text-kmpg-gray-600 mt-1">Error loading templates</p>
+          </div>
+        </div>
+        <div className="text-center py-12">
+          <AlertTriangle className="w-12 h-12 text-error-500 mx-auto mb-4" />
+          <h5 className="text-lg font-medium text-kmpg-gray-900 mb-2">Failed to Load Templates</h5>
+          <p className="text-kmpg-gray-600 mb-4">{loadError}</p>
+          <button
+            onClick={() => loadTemplates()}
+            className="bg-kmpg-blue-600 hover:bg-kmpg-blue-700 text-white px-6 py-2 rounded-xl transition-colors"
+          >
+            Retry
+          </button>
+        </div>
       </div>
     );
   }
@@ -266,7 +382,9 @@ const TemplateManagement = () => {
         <div className="text-center py-12">
           <FileText className="w-12 h-12 text-kpmg-gray-400 mx-auto mb-4" />
           <h5 className="text-lg font-medium text-kpmg-gray-900 mb-2">No Templates Yet</h5>
-          <p className="text-kpmg-gray-600 mb-4">Create your first questionnaire template to get started</p>
+          <p className="text-kpmg-gray-600 mb-4">
+            Create your first questionnaire template to get started
+          </p>
           <button
             onClick={() => setShowForm(true)}
             className="bg-kpmg-blue-600 hover:bg-kpmg-blue-700 text-white px-6 py-2 rounded-xl transition-colors"

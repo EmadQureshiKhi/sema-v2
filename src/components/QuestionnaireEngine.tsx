@@ -99,27 +99,36 @@ const QuestionnaireEngine = () => {
 
   // Load templates when component mounts or client changes
   React.useEffect(() => {
-    loadTemplates();
+    if (activeClient) {
+      loadTemplates();
+    }
   }, [activeClient]);
 
   const loadTemplates = async () => {
+    if (!activeClient) {
+      setTemplates([]);
+      return;
+    }
+
     try {
       setLoadingTemplates(true);
       console.log('Loading templates in QuestionnaireEngine for client:', activeClient?.id);
-      const data = await templateService.getTemplates(activeClient?.id);
+      
+      // Only pass client ID if it's a real UUID, not demo or generated IDs
+      const clientIdToUse = (activeClient.id !== 'demo' && !activeClient.id.startsWith('client_')) 
+        ? activeClient.id 
+        : undefined;
+      
+      const data = await templateService.getTemplates(clientIdToUse);
       console.log('Templates loaded in QuestionnaireEngine:', data);
       setTemplates(data);
     } catch (error) {
       console.error('Error loading templates in QuestionnaireEngine:', error);
-      console.error('Error details:', {
-        message: error.message,
-        stack: error.stack,
-        name: error.name
-      });
+      setTemplates([]); // Set empty array on error
       showToast({
         type: 'error',
         title: 'Error',
-        message: `Failed to load templates: ${error.message}`
+        message: 'Failed to load templates. Using local templates only.'
       });
     } finally {
       setLoadingTemplates(false);
@@ -132,6 +141,14 @@ const QuestionnaireEngine = () => {
       return;
     }
 
+    // Check if we're working with a demo or local client
+    if (activeClient?.id === 'demo' || (activeClient?.id && activeClient.id.startsWith('client_'))) {
+      showToast({
+        type: 'info',
+        title: 'Demo Mode',
+        message: 'Template loaded in demo mode. Changes will not be saved to database.'
+      });
+    }
     try {
       const template = templates.find(t => t.id === templateId);
       if (!template) return;

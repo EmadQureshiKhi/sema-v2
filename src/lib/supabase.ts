@@ -74,54 +74,97 @@ export interface ClientContact {
 export const templateService = {
   // Get all templates
   async getTemplates(clientId?: string) {
-    let query = supabase
-      .from('questionnaire_templates')
-      .select('*')
-      .order('created_at', { ascending: false })
-    
-    if (clientId) {
-      query = query.or(`client_id.eq.${clientId},client_id.is.null`)
+    try {
+      let query = supabase
+        .from('questionnaire_templates')
+        .select('*')
+        .order('created_at', { ascending: false })
+      
+      // Only filter by client_id if it's a valid UUID format
+      if (clientId && clientId !== 'demo' && !clientId.startsWith('client_')) {
+        query = query.or(`client_id.eq.${clientId},client_id.is.null`)
+      } else {
+        // For demo client or non-UUID client IDs, only get global templates
+        query = query.is('client_id', null)
+      }
+      
+      const { data, error } = await query
+      
+      if (error) {
+        console.error('Supabase query error:', error)
+        throw new Error(`Database query failed: ${error.message}`)
+      }
+      
+      return data as QuestionnaireTemplate[]
+    } catch (error) {
+      console.error('Error in getTemplates:', error)
+      // Return empty array instead of throwing to prevent app crashes
+      return []
     }
-    
-    const { data, error } = await query
-    
-    if (error) throw error
-    return data as QuestionnaireTemplate[]
   },
 
   // Create new template
   async createTemplate(template: Omit<QuestionnaireTemplate, 'id' | 'created_at'>) {
-    const { data, error } = await supabase
-      .from('questionnaire_templates')
-      .insert([template])
-      .select()
-      .single()
-    
-    if (error) throw error
-    return data as QuestionnaireTemplate
+    try {
+      // Don't save templates for demo or non-UUID clients
+      if (template.client_id === 'demo' || (template.client_id && template.client_id.startsWith('client_'))) {
+        throw new Error('Templates cannot be saved for demo or local clients. Please connect to Supabase first.');
+      }
+
+      const { data, error } = await supabase
+        .from('questionnaire_templates')
+        .insert([template])
+        .select()
+        .single()
+      
+      if (error) {
+        console.error('Supabase insert error:', error)
+        throw new Error(`Failed to create template: ${error.message}`)
+      }
+      return data as QuestionnaireTemplate
+    } catch (error) {
+      console.error('Error in createTemplate:', error)
+      throw error
+    }
   },
 
   // Update template
   async updateTemplate(id: string, updates: Partial<QuestionnaireTemplate>) {
-    const { data, error } = await supabase
-      .from('questionnaire_templates')
-      .update(updates)
-      .eq('id', id)
-      .select()
-      .single()
-    
-    if (error) throw error
-    return data as QuestionnaireTemplate
+    try {
+      const { data, error } = await supabase
+        .from('questionnaire_templates')
+        .update(updates)
+        .eq('id', id)
+        .select()
+        .single()
+      
+      if (error) {
+        console.error('Supabase update error:', error)
+        throw new Error(`Failed to update template: ${error.message}`)
+      }
+      return data as QuestionnaireTemplate
+    } catch (error) {
+      console.error('Error in updateTemplate:', error)
+      throw error
+    }
   },
 
   // Delete template
   async deleteTemplate(id: string) {
-    const { error } = await supabase
-      .from('questionnaire_templates')
-      .delete()
-      .eq('id', id)
-    
-    if (error) throw error
+    try {
+      const { error } = await supabase
+        .from('questionnaire_templates')
+        .delete()
+        .eq('id', id)
+      
+      if (error) {
+        console.error('Supabase delete error:', error)
+        throw new Error(`Failed to delete template: ${error.message}`)
+      }
+    } catch (error) {
+      console.error('Error in deleteTemplate:', error)
+      throw error
+    }
   }
 }
 
